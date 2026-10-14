@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+. /lib/functions.sh
+. /lib/functions/uci-defaults.sh
+
+[ "$(board_name)" = "cmcc,xr30-emmc" ] || exit 0
+
+board_config_update
+# Replace the generic unknown-board fallback (which includes a nonexistent lan4).
+json_add_object network
+json_close_object
+ucidef_set_interface_lan "lan1 lan2 lan3"
+ucidef_set_interface "lan" ipaddr "192.168.3.1" netmask "255.255.255.0"
+ucidef_set_interface_wan "eth1" "dhcp"
+ucidef_set_country "CN"
+ucidef_set_wireless "2g" "XR30" "none"
+ucidef_set_wireless "5g" "XR30" "none"
+board_config_flush
+
+exit 0

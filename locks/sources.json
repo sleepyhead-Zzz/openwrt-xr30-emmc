@@ -1,0 +1,43 @@
+{
+  "openwrt": {
+    "url": "https://github.com/openwrt/openwrt.git",
+    "ref": "v25.12.5",
+    "commit": "f0a60eee2fe051741c643ea6118718aae1ef17fb"
+  },
+  "template": {
+    "url": "https://github.com/P3TERX/Actions-OpenWrt",
+    "commit": "decaa5c260535c302a0d59d53b598bb409fd54dd"
+  },
+  "kwrt_reference": {
+    "url": "https://github.com/kiddin9/Kwrt",
+    "commit": "4ab643693238cf72a360720081b224cbb442b1c1"
+  },
+  "uboot_reference": {
+    "url": "https://github.com/lgs2007m/bl-mt798x",
+    "commit": "7c65f3ca969265421443fff033356a5218912d4d"
+  },
+  "community_document": {
+    "url": "https://github.com/lgs2007m/Actions-OpenWrt",
+    "commit": "d214de7d367665a8bc3b9d314e12de44df33b2af"
+  },
+  "official_kernel": {
+    "version": "6.12.94",
+    "release": "1",
+    "config_abi": "5a6c1f71be683ae9980b15d3ce73e24d"
+  },
+  "official_metadata": {
+    "config.buildinfo": {
+      "url": "https://downloads.openwrt.org/releases/25.12.5/targets/mediatek/filogic/config.buildinfo",
+      "sha256": "d79d1c4b3a18dac919371f8d9f1a9350363d9b94261744bd2cc2f5c3e4c17115"
+    },
+    "feeds.buildinfo": {
+      "url": "https://downloads.openwrt.org/releases/25.12.5/targets/mediatek/filogic/feeds.buildinfo",
+      "sha256": "e11279b01e7fea7f7d399e25e969d9382be6891071cbc1225804195224b27b52"
+    }
+  },
+  "actions": {
+    "checkout": "11d5960a326750d5838078e36cf38b85af677262",
+    "cache": "0057852bfaa89a56745cba8c7296529d2fc39830",
+    "upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+  }
+}

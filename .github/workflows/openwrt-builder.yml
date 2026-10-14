@@ -1,160 +1,183 @@
-#
-# https://github.com/P3TERX/Actions-OpenWrt
-#
-# File: .github/workflows/openwrt-bulder.yml
-# Description: Build OpenWrt using GitHub Actions
-#
-# Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-#
-
-name: OpenWrt Builder
+# Adapted from P3TERX/Actions-OpenWrt at decaa5c260535c302a0d59d53b598bb409fd54dd.
+# Copyright (c) 2019-2024 P3TERX; MIT, see LICENSE.
+name: XR30 eMMC RAM image
 
 on:
-  repository_dispatch:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: xr30-emmc-build
+  cancel-in-progress: false
+
 env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
-  REPO_BRANCH: master
-  FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: .config
-  DIY_P1_SH: diy-part1.sh
-  DIY_P2_SH: diy-part2.sh
-  UPLOAD_BIN_DIR: false
-  UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: true
-  TZ: Asia/Shanghai
+  TZ: UTC
+  OPENWRT_COMMIT: f0a60eee2fe051741c643ea6118718aae1ef17fb
+  CCACHE_MAXSIZE: 4G
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    defaults:
+      run:
+        shell: bash
     steps:
-    - name: Checkout
-      uses: actions/checkout@main
+      - name: Checkout build template and XR30 adaptation
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-    - name: Initialization environment
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-        sudo docker image prune --all --force
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /workdir
-        sudo chown $USER:$GROUPS /workdir
+      - name: Initialize environment and require 40 GiB free
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          mkdir -p logs reports
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo apt-get -qq update
+          sudo apt-get -qq install build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git \
+            libncurses-dev libssl-dev libelf-dev zlib1g-dev libzstd-dev python3 python3-setuptools \
+            rsync swig unzip file wget curl ccache cmake ninja-build quilt patch diffutils \
+            perl pkgconf time xsltproc zstd liblz4-tool cpio device-tree-compiler u-boot-tools \
+            qemu-user-static binfmt-support
+          sudo apt-get clean
+          sudo mkdir -p /workdir
+          sudo chown "$(id -u):$(id -g)" /workdir
+          df -hT /workdir | tee reports/disk-preflight.txt
+          test "$(df -B1 --output=avail /workdir | tail -1)" -ge 42949672960
+          python3 -m py_compile scripts/*.py
+          bash -n diy-part1.sh diy-part2.sh scripts/build-phase.sh
 
-    - name: Clone source code
-      working-directory: /workdir
-      run: |
-        df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+      - name: Download actual USTC indexes without mirror fallback
+        run: python3 scripts/repositories.py download 2>&1 | tee logs/ustc-download.log
 
-    - name: Load custom feeds
-      run: |
-        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
-        chmod +x $DIY_P1_SH
-        cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P1_SH
+      - name: Clone pinned official OpenWrt source
+        run: |
+          set -euo pipefail
+          git init /workdir/openwrt
+          git -C /workdir/openwrt remote add origin https://github.com/openwrt/openwrt.git
+          git -C /workdir/openwrt fetch --depth=1 origin "$OPENWRT_COMMIT"
+          git -C /workdir/openwrt checkout --detach FETCH_HEAD
+          test "$(git -C /workdir/openwrt rev-parse HEAD)" = "$OPENWRT_COMMIT"
+          ln -s /workdir/openwrt openwrt
+          cd openwrt
+          bash "$GITHUB_WORKSPACE/diy-part1.sh"
 
-    - name: Update feeds
-      run: cd openwrt && ./scripts/feeds update -a
+      - name: Restore downloads and compiler cache
+        id: restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            /workdir/openwrt/dl
+            /workdir/openwrt/.ccache
+          key: xr30-25.12.5-${{ runner.os }}-${{ hashFiles('locks/**', '.config') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            xr30-25.12.5-${{ runner.os }}-${{ hashFiles('locks/**', '.config') }}-
+            xr30-25.12.5-${{ runner.os }}-
 
-    - name: Install feeds
-      run: cd openwrt && ./scripts/feeds install -a
+      - name: Update and install the locked official feeds
+        run: |
+          set -euo pipefail
+          cd openwrt
+          ./scripts/feeds update -a 2>&1 | tee "$GITHUB_WORKSPACE/logs/feeds-update.log"
+          while read -r type name url; do
+            expected="${url##*^}"
+            test "$(git -C "feeds/$name" rev-parse HEAD)" = "$expected"
+          done < feeds.conf.default
+          ./scripts/feeds install -a 2>&1 | tee "$GITHUB_WORKSPACE/logs/feeds-install.log"
+          bash "$GITHUB_WORKSPACE/diy-part2.sh" 2>&1 | tee "$GITHUB_WORKSPACE/logs/configure.log"
+          cp .config "$GITHUB_WORKSPACE/reports/build.config"
+          ./scripts/diffconfig.sh > "$GITHUB_WORKSPACE/reports/build-diffconfig.txt"
 
-    - name: Load custom configuration
-      run: |
-        [ -e files ] && mv files openwrt/files
-        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
-        chmod +x $DIY_P2_SH
-        cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P2_SH
+      - name: Download packages (maximum four workers)
+        run: bash scripts/build-phase.sh download download
+      - name: Build host tools
+        run: bash scripts/build-phase.sh tools tools/install
+      - name: Build toolchain
+        run: bash scripts/build-phase.sh toolchain toolchain/install
+      - name: Build official kernel and modules
+        run: bash scripts/build-phase.sh kernel target/compile
+      - name: Build selected packages and all kernel modules
+        run: bash scripts/build-phase.sh packages package/compile
+      - name: Assemble root filesystem for ABI and signature checks
+        run: bash scripts/build-phase.sh rootfs package/install
 
-    - name: Download package
-      id: package
-      run: |
-        cd openwrt
-        make defconfig
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+      - name: Verify official signatures and module compatibility
+        run: python3 scripts/repositories.py verify openwrt 2>&1 | tee logs/compatibility.log
 
-    - name: Compile the firmware
-      id: compile
-      run: |
-        cd openwrt
-        echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
-        echo "status=success" >> $GITHUB_OUTPUT
-        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
-        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
-        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+      - name: Reassemble root filesystem with gated USTC repositories
+        run: bash scripts/build-phase.sh final-rootfs package/install
+      - name: Build RAM image and signed same-build package indexes
+        run: bash scripts/build-phase.sh image target/install package/index
+      - name: Verify dependencies with the actual image package database
+        run: python3 scripts/check_dependencies.py openwrt 2>&1 | tee logs/dependencies.log
+      - name: Verify FIT, DTB, CPIO, hashes and package ABI
+        run: |
+          set -euo pipefail
+          images=(openwrt/bin/targets/mediatek/filogic/*cmcc_xr30-emmc-initramfs-recovery.itb)
+          test "${#images[@]}" -eq 1
+          test -f "${images[0]}"
+          python3 scripts/verify_image.py "${images[0]}" reports 2>&1 | tee logs/image-checks.log
 
-    - name: Check space usage
-      if: (!cancelled())
-      run: df -hT
+      - name: Execute official config generators under ARM64 emulation
+        run: |
+          set -euo pipefail
+          mkdir test-root
+          gzip -dc reports/initrd.cpio.gz | (cd test-root && sudo cpio -id --make-directories --no-absolute-filenames)
+          sudo chown -R "$(id -u):$(id -g)" test-root
+          sudo cp /usr/bin/qemu-aarch64-static test-root/usr/bin/
+          sudo update-binfmts --enable qemu-aarch64
+          python3 scripts/test_defaults.py test-root 2>&1 | tee logs/defaults.log
+          python3 scripts/check_startup.py openwrt test-root 2>&1 | tee logs/startup.log
 
-    - name: Upload bin directory
-      uses: actions/upload-artifact@main
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
-      with:
-        name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/bin
+      - name: Collect validated candidate and reports
+        run: |
+          python3 scripts/collect.py | tee reports/result.txt
+          cat reports/result.txt >> "$GITHUB_STEP_SUMMARY"
 
-    - name: Organize files
-      id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
-      run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
+      - name: Upload validated RAM-boot candidate (30 days)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: xr30-emmc-25.12.5-candidate-${{ github.run_number }}
+          path: artifacts/candidate
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload same-build target packages (30 days)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: xr30-emmc-same-build-packages-${{ github.run_number }}
+          path: artifacts/same-build-packages
+          retention-days: 30
+          if-no-files-found: error
 
-    - name: Upload firmware directory
-      uses: actions/upload-artifact@main
-      if: steps.organize.outputs.status == 'success' && !cancelled()
-      with:
-        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: ${{ env.FIRMWARE }}
-
-    - name: Generate release tag
-      id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      run: |
-        echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
-        touch release.txt
-        [ ${UPLOAD_GOFILE} = true && ${{ steps.gofile.outputs.url }} ] && echo "🔗 [GoFile](${{ steps.gofile.outputs.url }})" >> release.txt
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: Upload firmware to release
-      uses: softprops/action-gh-release@master
-      if: steps.tag.outputs.status == 'success' && !cancelled()
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.tag.outputs.release_tag }}
-        body_path: release.txt
-        files: ${{ env.FIRMWARE }}/*
-
-    - name: Delete workflow runs
-      uses: Mattraks/delete-workflow-runs@main
-      with:
-        retain_days: 0
-        keep_minimum_runs: 2
-
-    - name: Remove old Releases
-      uses: dev-drprasad/delete-older-releases@master
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      with:
-        keep_latest: 3
-        delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Save downloads and compiler cache, including failed builds
+        if: always() && steps.restore.outcome == 'success'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            /workdir/openwrt/dl
+            /workdir/openwrt/.ccache
+          key: ${{ steps.restore.outputs.cache-primary-key }}
+      - name: Save disk usage and failure summary
+        if: always()
+        run: |
+          mkdir -p reports logs
+          df -hT > reports/disk-final.txt
+          if test -d openwrt/logs; then cp -R openwrt/logs logs/openwrt; fi
+          if ! test -f artifacts/candidate/STATUS.txt; then
+            echo 'No validated candidate: build or offline checks incomplete/failed. Hardware not tested.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload diagnostics even on failure (30 days)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: xr30-emmc-diagnostics-${{ github.run_number }}-${{ github.run_attempt }}
+          path: |
+            logs
+            reports
+          retention-days: 30
+          if-no-files-found: warn

@@ -1,0 +1,12 @@
+/openwrt/
+/reports/
+/logs/
+/artifacts/
+/test-root/
+/apk-sandbox/
+/apk-solver-root/
+__pycache__/
+*.pyc
+key-build*
+*.pem
+*.key
