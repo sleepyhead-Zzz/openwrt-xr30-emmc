@@ -21,7 +21,7 @@ This table documents source-level choices. Physical hardware facts were previous
 | Addresses | Official RAX recovery kernel `0x44000000`, DTB `0x43f00000`; community U-Boot upload `0x46000000` | Same kernel/DTB addresses; offline gate ensures uncompressed kernel ends before upload address |
 | U-Boot selection | `boot_from_mem()` uses an existing bootconf, otherwise FIT default; memory-upload handler skips `write_firmware_failsafe()` | No U-Boot build/config/environment change. Default config-1 is complete. Actual entry and current environment remain future-test prerequisites |
 | U-Boot environment | Inspected legacy environment is one 512 KiB region named u-boot-env; official RAX tools assume different naming/redundancy | Exclude uboot-envtools and fw_env.config; no attempt to reuse mismatched environment configuration |
-| Defaults | Official unknown-board fallback includes lan4; wireless uses board JSON defaults | `xr30-emmc-support` replaces fallback network object, calls official ucidef functions; no radio0 band assumption |
+| Defaults | Official unknown-board fallback includes lan4; wireless uses board JSON defaults | `xr30-emmc-support` replaces and normalizes the empty network object before calling official ucidef functions, avoiding duplicate JSON keys; no radio0 band assumption |
 | Software repos | Kwrt has custom repos and modified compatibility controls | Official packages via USTC, normal signature/dependency checks; unmodified ABI calculation |
 
 ## Pinned primary references

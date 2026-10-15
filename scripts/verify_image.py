@@ -170,6 +170,7 @@ def verify(image, report_dir):
     packages = installed_packages(files['lib/apk/db/installed']['data'])
     for name in ['xr30-emmc-support', 'luci', 'luci-i18n-base-zh-cn', 'dropbear', 'wpad-basic-mbedtls', 'kmod-mt7915e', 'kmod-mt7981-firmware', 'kmod-usb3', 'kmod-usb-storage']:
         check(name in packages, 'missing package: ' + name)
+    check(packages['xr30-emmc-support']['V'] == '1.0.0-r2', 'board support must include the network JSON normalization fix')
     for name in ['uboot-envtools', 'block-mount', 'blockd', 'fitblk']:
         check(name not in packages, 'unexpected disk/environment helper: ' + name)
     check('etc/fw_env.config' not in files, 'U-Boot environment config forbidden')
