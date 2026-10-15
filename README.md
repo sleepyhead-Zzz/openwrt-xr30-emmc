@@ -31,6 +31,8 @@ Successful runs retain these artifacts for 30 days:
 
 Diagnostics may include an unvalidated intermediate RAM image and an allowlisted public build-state snapshot to diagnose validation failures without losing the compiled evidence. These files carry `NOT-A-CANDIDATE.txt`; they are not a successful delivery. Signing private keys are excluded.
 
+The separate manual **Validate preserved XR30 RAM image** workflow authenticates the exact diagnostics from build run `38670311345`, checks the unchanged image again, and repeats configuration/startup testing. It performs no compilation or image edits. A candidate requires every validation step to pass; provenance records both the original build and the later validation run. The emulation fixture supplies RAM runtime directories and a private `/dev/null` device, without mounting host devices.
+
 The image contains no sysupgrade payload, GPT, BL2 or FIP installation artifact. Do not submit it to the current Kwrt LuCI firmware-upgrade form. Physical memory-boot testing and any persistent migration are separate work.
 
 ## Package compatibility

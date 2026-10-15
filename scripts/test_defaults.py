@@ -27,6 +27,9 @@ def main():
         return result.stdout.strip()
     def get(key):
         return cmd('/sbin/uci', '-q', 'get', key)
+    # Normal boot creates these RAM directories before UCI configuration runs.
+    for path in ['tmp/.uci', 'tmp/run', 'tmp/lock', 'tmp/state']:
+        (root / path).mkdir(parents=True, exist_ok=True)
     (root / 'tmp/sysinfo').mkdir(parents=True, exist_ok=True)
     (root / 'tmp/sysinfo/board_name').write_text('cmcc,xr30-emmc\n')
     (root / 'tmp/sysinfo/model').write_text('CMCC XR30 (eMMC version)\n')
@@ -34,6 +37,12 @@ def main():
         (root / p).unlink(missing_ok=True)
     cmd('/bin/board_detect')
     cmd('/bin/config_generate')
+    # Preserve the actual generated evidence even if an assertion fails.
+    for name in ['board.json', 'config/network', 'config/system']:
+        path = root / 'etc' / name
+        if path.is_file():
+            (reports / ('observed-' + name.replace('/', '-') + '.txt')).write_bytes(path.read_bytes())
+    (reports / 'observed-network.uci').write_text(cmd('/sbin/uci', 'export', 'network') + '\n')
     assert get('network.lan.ipaddr') == '192.168.3.1/24'
     assert get('network.lan.proto') == 'static'
     assert get('network.lan.device') == 'br-lan'
