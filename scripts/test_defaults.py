@@ -17,6 +17,7 @@ REPO = Path(__file__).resolve().parents[1]
 def main():
     root = Path(sys.argv[1]).resolve()
     reports = REPO / 'reports'
+    (reports / 'defaults-test.log').write_text('')
     def cmd(*args, input=None):
         result = subprocess.run(['sudo', 'chroot', str(root), *args], input=input,
                                 text=True, capture_output=True)
@@ -43,6 +44,8 @@ def main():
         if path.is_file():
             (reports / ('observed-' + name.replace('/', '-') + '.txt')).write_bytes(path.read_bytes())
     (reports / 'observed-network.uci').write_text(cmd('/sbin/uci', 'export', 'network') + '\n')
+    print((root / 'etc/board.json').read_text(), flush=True)
+    print((reports / 'observed-network.uci').read_text(), flush=True)
     assert get('network.lan.ipaddr') == '192.168.3.1/24'
     assert get('network.lan.proto') == 'static'
     assert get('network.lan.device') == 'br-lan'

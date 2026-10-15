@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           for index in reports/indexes/*.adb; do
-            openwrt/staging_dir/host/bin/apk --keys-dir test-root/etc/apk/keys verify "$index"
+            openwrt/staging_dir/host/bin/apk --keys-dir "$PWD/test-root/etc/apk/keys" verify "$index"
           done
           python3 scripts/check_dependencies.py openwrt 2>&1 | tee logs/dependencies.log
       - name: Execute real network and wireless generators
