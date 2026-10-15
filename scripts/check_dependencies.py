@@ -14,7 +14,7 @@ sandbox = repo / 'apk-solver-root'
 for path in ['lib/apk', 'etc/apk']:
     shutil.copytree(root / path, sandbox / path, dirs_exist_ok=True, symlinks=True)
 apk = source / 'staging_dir/host/bin/apk'
-args = [apk, '--root', sandbox, '--arch', 'aarch64_cortex-a53', '--no-cache',
+args = [source / 'staging_dir/host/bin/fakeroot', apk, '--root', sandbox, '--arch', 'aarch64_cortex-a53', '--no-cache',
         '--keys-dir', root / 'etc/apk/keys',
         '--repositories-file', root / 'etc/apk/repositories.d/distfeeds.list']
 log = reports / 'dependency-checks.log'

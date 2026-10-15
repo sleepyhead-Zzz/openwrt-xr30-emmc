@@ -103,11 +103,13 @@ def main():
     fetched.mkdir(exist_ok=True)
     run(common + ['fetch', '--output', fetched, 'kmod-usb-net-asix'], log)
     package = next(fetched.glob('kmod-usb-net-asix-*.apk'))
-    run([apk, '--keys-dir', keys, 'verify', package], log)
-    extracted = fetched / 'extracted'
-    extracted.mkdir(exist_ok=True)
-    run([apk, '--keys-dir', keys, 'extract', '--destination', extracted, package], log)
-    official_magic = vermagic(next(extracted.rglob('asix.ko')).read_bytes())
+    # OpenWrt signs the repository index, not each individual APK. apk fetch
+    # authenticates the package identity/data against that signed index.
+    # Use the same normal trust chain to unpack it in an isolated, script-free
+    # root. Never bypass verification to extract an individually unsigned APK.
+    fakeroot = source / 'staging_dir/host/bin/fakeroot'
+    run([fakeroot] + common + ['add', '--initdb', '--no-scripts', 'kmod-usb-net-asix'], log)
+    official_magic = vermagic(next(sandbox.rglob('asix.ko')).read_bytes())
     match = config_abi == expected['config_abi'] and built_magic == official_magic
     active = [p for p in PATHS if p != KMOD or match]
     output = source / 'files/etc/apk/repositories.d/distfeeds.list'
@@ -119,6 +121,7 @@ def main():
               'official_config_abi': expected['config_abi'], 'built_kernel_package': kernel_package,
               'built_module_vermagic': built_magic, 'official_module_vermagic': official_magic,
               'official_module_sha256': hashlib.sha256(package.read_bytes()).hexdigest(),
+              'official_module_authentication': 'signed repository index and apk package identity/data verification; no verification bypass',
               'official_kmods_enabled': match, 'kernel_or_module_checks_bypassed': False,
               'dependency_checks': 'pending final image rootfs'}
     (reports / 'compatibility.json').write_text(json.dumps(result, indent=2) + '\n')
