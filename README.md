@@ -29,6 +29,8 @@ Successful runs retain these artifacts for 30 days:
 - `xr30-emmc-same-build-packages-*`: signed target package index and packages from the same build, including kernel modules.
 - `xr30-emmc-diagnostics-*`: logs and intermediate reports, also saved on failure. A diagnostic artifact is not a validated boot candidate.
 
+Diagnostics may include an unvalidated intermediate RAM image and an allowlisted public build-state snapshot to diagnose validation failures without losing the compiled evidence. These files carry `NOT-A-CANDIDATE.txt`; they are not a successful delivery. Signing private keys are excluded.
+
 The image contains no sysupgrade payload, GPT, BL2 or FIP installation artifact. Do not submit it to the current Kwrt LuCI firmware-upgrade form. Physical memory-boot testing and any persistent migration are separate work.
 
 ## Package compatibility

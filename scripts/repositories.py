@@ -25,6 +25,7 @@ def run(args, log):
     with log.open('a') as f:
         f.write('$ ' + ' '.join(str(a) for a in args) + '\n' + p.stdout + '\n')
     if p.returncode:
+        print(p.stdout, file=sys.stderr)
         raise RuntimeError(f'{args[0]} failed ({p.returncode}); see {log}')
     return p.stdout
 
@@ -86,11 +87,17 @@ def main():
     kernel_package = f'{expected["version"]}~{config_abi}-r{expected["release"]}'
     module = next(linux.rglob('asix.ko'))
     built_magic = vermagic(module.read_bytes())
+    (reports / 'kernel-abi-observed.json').write_text(json.dumps({
+        'built_config_abi': config_abi, 'official_config_abi': expected['config_abi'],
+        'built_kernel_package': kernel_package, 'built_module_vermagic': built_magic,
+    }, indent=2) + '\n')
     official_repos = reports / 'official-all-repositories.list'
     official_repos.write_text('\n'.join(BASE + p for p in PATHS) + '\n')
     sandbox = REPO / 'apk-sandbox'
     sandbox.mkdir(exist_ok=True)
-    common = [apk, '--root', sandbox, '--initdb', '--arch', 'aarch64_cortex-a53',
+    # fetch opens the repository database with NO_STATE and does not need an
+    # installed-package database. --initdb belongs to apk add, not apk fetch.
+    common = [apk, '--root', sandbox, '--arch', 'aarch64_cortex-a53',
               '--keys-dir', keys, '--repositories-file', official_repos, '--no-cache']
     fetched = reports / 'official-module'
     fetched.mkdir(exist_ok=True)

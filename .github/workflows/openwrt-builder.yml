@@ -105,6 +105,8 @@ jobs:
         run: bash scripts/build-phase.sh packages package/compile
       - name: Assemble root filesystem for ABI and signature checks
         run: bash scripts/build-phase.sh rootfs package/install
+      - name: Build unvalidated RAM image for recoverable diagnostics
+        run: bash scripts/build-phase.sh initial-image target/install package/index
 
       - name: Verify official signatures and module compatibility
         run: python3 scripts/repositories.py verify openwrt 2>&1 | tee logs/compatibility.log
@@ -168,6 +170,7 @@ jobs:
           mkdir -p reports logs
           df -hT > reports/disk-final.txt
           if test -d openwrt/logs; then cp -R openwrt/logs logs/openwrt; fi
+          python3 scripts/save_diagnostics.py
           if ! test -f artifacts/candidate/STATUS.txt; then
             echo 'No validated candidate: build or offline checks incomplete/failed. Hardware not tested.' >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -176,6 +179,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: xr30-emmc-diagnostics-${{ github.run_number }}-${{ github.run_attempt }}
+          include-hidden-files: true
           path: |
             logs
             reports

@@ -29,6 +29,7 @@ for p in reports.iterdir():
 shutil.copy2(source / '.config', dest / 'build.config')
 linux = next(source.glob('build_dir/target-*/linux-mediatek_filogic/linux-6.12.94'))
 shutil.copy2(linux / '.config.set', dest / 'kernel.config.set')
+shutil.copy2(linux / '.config', dest / 'kernel.config.image')
 shutil.copy2(linux / '.vermagic', dest / 'kernel.config-abi')
 root = next(source.glob('build_dir/target-*/root-mediatek'))
 shutil.copytree(root / 'etc/apk/keys', dest / 'apk-public-keys', dirs_exist_ok=True)
