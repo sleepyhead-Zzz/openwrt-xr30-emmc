@@ -59,10 +59,20 @@ jobs:
           done
           python3 scripts/check_dependencies.py openwrt 2>&1 | tee logs/dependencies.log
       - name: Execute real network and wireless generators
+        id: defaults
         run: |
           set -euo pipefail
           python3 scripts/test_defaults.py test-root 2>&1 | tee logs/defaults.log
           python3 scripts/check_startup.py openwrt test-root 2>&1 | tee logs/startup.log
+      - name: Diagnose board fix in an extracted copy only (never a candidate)
+        if: failure() && steps.defaults.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          mkdir -p reports/board-fix-test
+          echo 'DIAGNOSTIC TEST OF CHANGED EXTRACTED FILES. THE ORIGINAL ITB IS NOT A CANDIDATE.' > reports/board-fix-test/STATUS.txt
+          sudo cp overlay/package/xr30-emmc-support/files/99-xr30 test-root/etc/board.d/99-xr30
+          python3 scripts/test_defaults.py test-root reports/board-fix-test 2>&1 | tee logs/board-fix-test.log
+          python3 scripts/check_startup.py openwrt test-root 2>&1 | tee logs/startup-fix-test.log
       - name: Collect validated unchanged image and reports
         run: |
           python3 scripts/collect.py | tee reports/result.txt

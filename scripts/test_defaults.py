@@ -16,7 +16,8 @@ REPO = Path(__file__).resolve().parents[1]
 
 def main():
     root = Path(sys.argv[1]).resolve()
-    reports = REPO / 'reports'
+    reports = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else REPO / 'reports'
+    reports.mkdir(parents=True, exist_ok=True)
     (reports / 'defaults-test.log').write_text('')
     def cmd(*args, input=None):
         result = subprocess.run(['sudo', 'chroot', str(root), *args], input=input,
@@ -42,9 +43,9 @@ def main():
     for name in ['board.json', 'config/network', 'config/system']:
         path = root / 'etc' / name
         if path.is_file():
-            (reports / ('observed-' + name.replace('/', '-') + '.txt')).write_bytes(path.read_bytes())
+            (reports / ('observed-' + name.replace('/', '-') + '.txt')).write_text(cmd('/bin/cat', '/etc/' + name) + '\n')
     (reports / 'observed-network.uci').write_text(cmd('/sbin/uci', 'export', 'network') + '\n')
-    print((root / 'etc/board.json').read_text(), flush=True)
+    print(cmd('/bin/cat', '/etc/board.json'), flush=True)
     print((reports / 'observed-network.uci').read_text(), flush=True)
     assert get('network.lan.ipaddr') == '192.168.3.1/24'
     assert get('network.lan.proto') == 'static'
@@ -59,7 +60,7 @@ def main():
     assert (root / 'etc/init.d/dnsmasq').exists()
     (reports / 'generated-network.uci').write_text(cmd('/sbin/uci', 'export', 'network') + '\n')
     (reports / 'generated-dhcp.uci').write_text(cmd('/sbin/uci', 'export', 'dhcp') + '\n')
-    board = json.loads((root / 'etc/board.json').read_text())
+    board = json.loads(cmd('/bin/cat', '/etc/board.json'))
     (reports / 'generated-board.json').write_text(json.dumps(board, indent=2) + '\n')
     results = []
     for order in [('2G', '5G'), ('5G', '2G')]:
@@ -72,8 +73,8 @@ def main():
             path = root / f'sys/class/ieee80211/{phy}'
             path.mkdir(parents=True, exist_ok=True)
             (path / 'macaddress').write_text(f'02:00:00:00:00:0{index}\n')
-        (root / 'etc/board.json').write_text(json.dumps(fixture))
-        (root / 'etc/config/wireless').write_text('')
+        cmd('/bin/sh', '-c', 'cat > /etc/board.json', input=json.dumps(fixture))
+        cmd('/bin/sh', '-c', ': > /etc/config/wireless')
         generated = cmd('/usr/bin/ucode', '/lib/wifi/mac80211.uc')
         cmd('/sbin/uci', '-q', 'batch', input=generated + '\n')
         settings = cmd('/sbin/uci', '-q', 'show', 'wireless')
