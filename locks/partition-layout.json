@@ -1,0 +1,42 @@
+{
+  "sector_bytes": 512,
+  "disk_sectors": 120832000,
+  "last_usable_lba": 120831966,
+  "partitions": [
+    {
+      "number": 1,
+      "name": "u-boot-env",
+      "start_lba": 8192,
+      "end_lba": 9215,
+      "size_bytes": 524288
+    },
+    {
+      "number": 2,
+      "name": "factory",
+      "start_lba": 9216,
+      "end_lba": 13311,
+      "size_bytes": 2097152
+    },
+    {
+      "number": 3,
+      "name": "fip",
+      "start_lba": 13312,
+      "end_lba": 17407,
+      "size_bytes": 2097152
+    },
+    {
+      "number": 4,
+      "name": "production",
+      "start_lba": 18432,
+      "end_lba": 25184255,
+      "size_bytes": 12884901888
+    },
+    {
+      "number": 5,
+      "name": "data",
+      "start_lba": 25184256,
+      "end_lba": 120831966,
+      "size_bytes": 48971628032
+    }
+  ]
+}

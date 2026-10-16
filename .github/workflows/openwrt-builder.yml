@@ -1,6 +1,6 @@
 # Adapted from P3TERX/Actions-OpenWrt at decaa5c260535c302a0d59d53b598bb409fd54dd.
 # Copyright (c) 2019-2024 P3TERX; MIT, see LICENSE.
-name: XR30 eMMC RAM image
+name: XR30 eMMC production and rescue
 
 on:
   workflow_dispatch:
@@ -43,7 +43,7 @@ jobs:
             libncurses-dev libssl-dev libelf-dev zlib1g-dev libzstd-dev python3 python3-setuptools \
             rsync swig unzip file wget curl ccache cmake ninja-build quilt patch diffutils \
             perl pkgconf time xsltproc zstd liblz4-tool cpio device-tree-compiler u-boot-tools \
-            qemu-user-static binfmt-support
+            qemu-user-static binfmt-support squashfs-tools fdisk gdisk f2fs-tools
           sudo apt-get clean
           sudo mkdir -p /workdir
           sudo chown "$(id -u):$(id -g)" /workdir
@@ -105,7 +105,7 @@ jobs:
         run: bash scripts/build-phase.sh packages package/compile
       - name: Assemble root filesystem for ABI and signature checks
         run: bash scripts/build-phase.sh rootfs package/install
-      - name: Build unvalidated RAM image for recoverable diagnostics
+      - name: Build unvalidated production and rescue images for recoverable diagnostics
         run: bash scripts/build-phase.sh initial-image target/install package/index
 
       - name: Verify official signatures and module compatibility
@@ -113,17 +113,19 @@ jobs:
 
       - name: Reassemble root filesystem with gated USTC repositories
         run: bash scripts/build-phase.sh final-rootfs package/install
-      - name: Build RAM image and signed same-build package indexes
+      - name: Build production and rescue images and signed same-build package indexes
         run: bash scripts/build-phase.sh image target/install package/index
       - name: Verify dependencies with the actual image package database
         run: python3 scripts/check_dependencies.py openwrt 2>&1 | tee logs/dependencies.log
       - name: Verify FIT, DTB, CPIO, hashes and package ABI
         run: |
           set -euo pipefail
-          images=(openwrt/bin/targets/mediatek/filogic/*cmcc_xr30-emmc-initramfs-recovery.itb)
-          test "${#images[@]}" -eq 1
-          test -f "${images[0]}"
-          python3 scripts/verify_image.py "${images[0]}" reports 2>&1 | tee logs/image-checks.log
+          for kind in initramfs-recovery squashfs-sysupgrade; do
+            images=(openwrt/bin/targets/mediatek/filogic/*cmcc_xr30-emmc-${kind}.itb)
+            test "${#images[@]}" -eq 1
+            test -f "${images[0]}"
+            python3 scripts/verify_image.py "${images[0]}" reports 2>&1 | tee "logs/image-${kind}-checks.log"
+          done
 
       - name: Execute official config generators under ARM64 emulation
         run: |
@@ -138,12 +140,15 @@ jobs:
           python3 scripts/test_defaults.py test-root 2>&1 | tee logs/defaults.log
           python3 scripts/check_startup.py openwrt test-root 2>&1 | tee logs/startup.log
 
+      - name: Verify GPT, 12 GiB writable root, ext4 persistence and upgrade isolation
+        run: sudo python3 scripts/test_disk.py 2>&1 | tee logs/disk-checks.log
+
       - name: Collect validated candidate and reports
         run: |
           python3 scripts/collect.py | tee reports/result.txt
           cat reports/result.txt >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload validated RAM-boot candidate (30 days)
+      - name: Upload validated installation candidate (30 days)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: xr30-emmc-25.12.5-candidate-${{ github.run_number }}

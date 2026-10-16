@@ -1,0 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+#include "mt7981b-cmcc-xr30-emmc.dts"
+&chosen {
+ /delete-property/ rootdisk;
+ bootargs-override = "console=ttyS0,115200n8 rdinit=/init fstools_ignore_partname=1 xr30_rescue=1";
+};
+/delete-node/ &emmc_rootdisk;

@@ -27,7 +27,7 @@ patterns = [
     'build_dir/target-*/fstools-*/libfstools/rootdisk.c',
     'build_dir/target-*/fstools-*/libfstools/partname.c',
     'build_dir/target-*/fstools-*/libfstools/fit.c',
-    'bin/targets/mediatek/filogic/*cmcc_xr30-emmc-initramfs-recovery.itb',
+    'bin/targets/mediatek/filogic/*cmcc_xr30-emmc-*.itb',
 ]
 manifest = []
 for pattern in patterns:

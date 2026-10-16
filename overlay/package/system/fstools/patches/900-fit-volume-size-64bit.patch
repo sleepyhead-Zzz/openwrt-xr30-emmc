@@ -1,0 +1,11 @@
+--- a/libfstools/fit.c
++++ b/libfstools/fit.c
+@@ -66,7 +66,7 @@ static int fit_volume_init(struct volume *v)
+ 		return -1;
+ 
+ 	v->type = BLOCKDEV;
+-	v->size = volsize << 9; /* size is returned in sectors of 512 bytes */
++	v->size = (uint64_t)volsize << 9; /* convert sectors without 32-bit truncation */
+ 	v->blk = p->dev.devpathstr;
+ 
+ 	return block_volume_format(v, 0, p->dev.devpathstr);

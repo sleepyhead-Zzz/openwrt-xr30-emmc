@@ -23,7 +23,8 @@
 	};
 
 	chosen: chosen {
-		bootargs-override = "console=ttyS0,115200n8 rdinit=/init fstools_ignore_partname=1";
+		bootargs-override = "console=ttyS0,115200n8 root=/dev/fit0 rootwait fstools_overlay_fstype=f2fs";
+		rootdisk = <&emmc_rootdisk>;
 		stdout-path = "serial0:115200n8";
 	};
 
@@ -189,6 +190,9 @@
 			compatible = "block-device";
 
 			partitions {
+				emmc_rootdisk: block-partition-production {
+					partname = "production";
+				};
 				block-partition-factory {
 					partname = "factory";
 

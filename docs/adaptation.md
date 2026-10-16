@@ -1,3 +1,7 @@
+# Historical RAM adaptation baseline
+
+This document describes the earlier RAM-only release. Current production/rescue behavior, empty U-Boot compatibility overlay and storage validation are specified in README.md, installation.md and validation.md. Historical RAM-only restrictions below do not describe the new production FIT.
+
 # XR30 eMMC adaptation comparison
 
 This table documents source-level choices. Physical hardware facts were previously observed in a separate read-only inspection; raw dumps and private identifiers are deliberately absent from this public repository. That inspection is not a boot test of this image.

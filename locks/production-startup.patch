@@ -1,0 +1,73 @@
+--- a/package/base-files/files/etc/init.d/done
++++ b/package/base-files/files/etc/init.d/done
+@@ -3,7 +3,8 @@
+ 
+ START=95
+ boot() {
+-	mount_root done
++	. /lib/functions/xr30.sh
++	xr30_is_rescue || mount_root done
+ 	rm -f /sysupgrade.tgz && sync
+ 	rm -f /tmp/sysupgrade.tar && sync
+ 
+--- a/package/system/fstools/files/fstab.init
++++ b/package/system/fstools/files/fstab.init
+@@ -6,6 +6,8 @@
+ START=11
+ 
+ boot() {
++	. /lib/functions/xr30.sh
++	xr30_is_rescue && return 0
+ 	/sbin/block mount
+ }
+ 
+--- a/package/system/fstools/files/mount.hotplug
++++ b/package/system/fstools/files/mount.hotplug
+@@ -1 +1,3 @@
++. /lib/functions/xr30.sh
++xr30_is_rescue && exit 0
+ [ "$ACTION" = "add" -o "$ACTION" = "remove" ] && /sbin/block hotplug
+--- a/package/system/fstools/files/fstab.default
++++ b/package/system/fstools/files/fstab.default
+@@ -1,2 +1,4 @@
++. /lib/functions/xr30.sh
++xr30_is_rescue && exit 0
+ [ ! -f /etc/config/fstab ] && ( block detect > /etc/config/fstab )
+ exit 0
+--- a/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
++++ b/target/linux/mediatek/filogic/base-files/lib/upgrade/platform.sh
+@@ -110,6 +110,7 @@
+ 	bananapi,bpi-r4-lite|\
+ 	bazis,ax3000wm|\
+ 	cmcc,a10-ubootmod|\
++	cmcc,xr30-emmc|\
+ 	cmcc,rax3000m|\
+ 	comfast,cf-wr632ax-ubootmod|\
+ 	creatlentem,clt-r30b1-ubi|\
+@@ -316,6 +317,7 @@
+ 	bananapi,bpi-r4-lite|\
+ 	bazis,ax3000wm|\
+ 	cmcc,a10-ubootmod|\
++	cmcc,xr30-emmc|\
+ 	cmcc,rax3000m|\
+ 	comfast,cf-wr632ax-ubootmod|\
+ 	creatlentem,clt-r30b1-ubi|\
+@@ -382,6 +384,7 @@
+ 	bananapi,bpi-r4-2g5|\
+ 	bananapi,bpi-r4-poe|\
+ 	bananapi,bpi-r4-lite|\
++	cmcc,xr30-emmc|\
+ 	cmcc,rax3000m|\
+ 	gatonetworks,gdsp|\
+ 	mediatek,mt7988a-rfb)
+--- a/scripts/mkits.sh
++++ b/scripts/mkits.sh
+@@ -166,6 +166,8 @@
+ [ "$DTOVERLAY" ] && for overlay in $DTOVERLAY ; do
+ 	overlay_blob=${overlay##*:}
+ 	ovname=${overlay%%:*}
++	# XR30 keeps its hardware DT; alias only the no-op overlay for existing U-Boot.
++	[ "$DEVICE:$ovname" = "cmcc_xr30-emmc:mt7981b-cmcc-xr30-uboot-compat" ] && ovname="mt7981b-cmcc-rax3000m-emmc"
+ 	ovnode="fdt-$ovname"
+ 	ovsize=$(wc -c "$overlay_blob" | awk '{print $1}')
+ 	echo "$ovname ($overlay_blob) : $ovsize" >&2

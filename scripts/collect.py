@@ -14,13 +14,16 @@ reports = repo / 'reports'
 dest = repo / 'artifacts/candidate'
 dest.mkdir(parents=True, exist_ok=True)
 target = source / 'bin/targets/mediatek/filogic'
-images = list(target.glob('*cmcc_xr30-emmc-initramfs-recovery.itb'))
-assert len(images) == 1
-for name in ['image-checks.json', 'defaults-checks.json', 'startup-checks.json', 'compatibility.json']:
+images = list(target.glob('*cmcc_xr30-emmc-*.itb'))
+assert len(images) == 2
+for name in ['rescue-image-checks.json', 'production-image-checks.json', 'defaults-checks.json', 'startup-checks.json', 'disk-checks.json', 'compatibility.json']:
     assert (reports / name).is_file(), name
 compat = json.loads((reports / 'compatibility.json').read_text())
 assert compat['indexes_verified'] and compat['dependency_checks'].startswith('passed')
-shutil.copy2(images[0], dest / images[0].name)
+for image in images:
+    shutil.copy2(image, dest / image.name)
+for name in ['startup-checks.json','disk-checks.json','defaults-checks.json']:
+    assert json.loads((reports/name).read_text())['status'] == 'passed', name
 shutil.copytree(repo / 'locks', dest / 'locks', dirs_exist_ok=True)
 shutil.copytree(repo / 'docs', dest / 'docs', dirs_exist_ok=True)
 for p in reports.iterdir():
@@ -40,9 +43,10 @@ provenance = {'build_repository': 'https://github.com/' + os.environ['GITHUB_REP
     'feeds': {p.name: subprocess.check_output(['git', '-C', str(p), 'rev-parse', 'HEAD'], text=True).strip()
               for p in (source / 'feeds').iterdir() if p.is_dir() and (p / '.git').exists()}}
 (dest / 'provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
-status = ('构建及离线检查完成，尚未实机验证。\n'
-          '本镜像仅供后续评估 U-Boot 内存启动；不是 sysupgrade 包。\n'
-          '实际频率、无线/网口表现和回退能力尚未测试。\n'
+status = ('正式安装版构建及离线检查通过，磁盘启动与持久化尚未实机验证。\n'
+          '正式 FIT：SquashFS + F2FS，production 系统分区为 12 GiB。\n'
+          '救援 FIT：独立 initramfs，不自动挂载或格式化已有磁盘。\n'
+          '数据区：ext4，XR30_DATA，/mnt/data；须在未来安装阶段显式格式化。\n'
           '官方 kmod 仓库：' + ('已通过 ABI、模块 vermagic 和依赖检查并启用。\n' if compat['official_kmods_enabled'] else '不匹配，已禁用；附同次构建模块。\n'))
 (dest / 'STATUS.txt').write_text(status)
 # The full target package index remains consistent with the supplied package files.
