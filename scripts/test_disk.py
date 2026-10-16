@@ -127,7 +127,10 @@ echo "$EMMC_KERNEL_BLOCKS" > /tmp/test-blocks
   with (td/'overlay/large-offset').open('rb') as f:
    f.seek(5*1024**3);assert f.read()==b'XR30-64BIT-PERSISTENCE'
   assert (td/'overlay/upper/etc/xr30-persist-test').read_text()=='persistent merged root\n'
-  unmount(td/'overlay')
+  mount(fit0,td/'rom','squashfs')
+  mount('overlay',td/'merged','overlay',f'lowerdir={td}/rom,upperdir={td}/overlay/upper,workdir={td}/overlay/work')
+  assert (td/'merged/etc/xr30-persist-test').read_text()=='persistent merged root\n'
+  unmount(td/'merged');unmount(td/'rom');unmount(td/'overlay')
   # A second official upgrade including config-copy may destroy only production.
   (root/'tmp/config-backup').write_bytes(b'XR30-UPGRADE-CONFIG-MARKER\n')
   arm(upgrade.replace('UPGRADE_BACKUP=','UPGRADE_BACKUP=/tmp/config-backup')+'\nemmc_copy_config\n')
