@@ -1,0 +1,99 @@
+name: Validate preserved XR30 production and rescue
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: xr30-emmc-validation
+  cancel-in-progress: false
+env:
+  TZ: UTC
+  XR30_SOURCE_BUILD_RUN_ID: '38842057759'
+  XR30_SOURCE_BUILD_COMMIT: ba5a9a79dc1c45d56878655ee7a4cd2a0bd4e01d
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout corrected offline checks
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install verification tools and require 40 GiB free
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo apt-get -qq update
+          sudo apt-get -qq install qemu-user-static binfmt-support cpio fakeroot unzip device-tree-compiler squashfs-tools fdisk gdisk f2fs-tools
+          sudo apt-get clean
+          mkdir -p reports logs
+          df -hT | tee reports/disk-preflight.txt
+          test "$(df -B1 --output=avail . | tail -1)" -ge 42949672960
+          python3 -m py_compile scripts/*.py
+          sudo update-binfmts --enable qemu-aarch64
+      - name: Download exact source-run diagnostic artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$XR30_SOURCE_BUILD_RUN_ID/artifacts" > artifact-list.json
+          artifact_id=$(python3 -c 'import json; a=[x for x in json.load(open("artifact-list.json"))["artifacts"] if x["name"]=="xr30-emmc-diagnostics-6-1" and not x["expired"]]; assert len(a)==1; print(a[0]["id"])')
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id" > source-artifact.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > source-artifact.zip
+          python3 scripts/recover_build.py
+      - name: Verify fresh USTC signatures and official module ABI
+        run: |
+          set -euo pipefail
+          python3 scripts/repositories.py download 2>&1 | tee logs/ustc-download.log
+          python3 scripts/repositories.py verify openwrt 2>&1 | tee logs/compatibility.log
+          python3 scripts/check_dependencies.py openwrt 2>&1 | tee logs/dependencies.log
+      - name: Verify both unchanged FITs and their root filesystems
+        run: |
+          set -euo pipefail
+          for kind in initramfs-recovery squashfs-sysupgrade; do
+            images=(openwrt/bin/targets/mediatek/filogic/*cmcc_xr30-emmc-${kind}.itb)
+            test "${#images[@]}" -eq 1
+            python3 scripts/verify_image.py "${images[0]}" reports 2>&1 | tee "logs/image-${kind}-checks.log"
+          done
+      - name: Execute real defaults and both boot-mode gates
+        run: |
+          set -euo pipefail
+          python3 scripts/test_defaults.py test-root 2>&1 | tee logs/defaults.log
+          python3 scripts/check_startup.py openwrt test-root 2>&1 | tee logs/startup.log
+      - name: Verify virtual GPT, persistence and official upgrade write range
+        run: sudo python3 scripts/test_disk.py 2>&1 | tee logs/disk-checks.log
+      - name: Collect only validated original images with source and validation provenance
+        run: |
+          python3 scripts/collect.py | tee reports/result.txt
+          cat reports/result.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload validated installation candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: xr30-emmc-25.12.5-candidate-validated-${{ github.run_number }}
+          path: artifacts/candidate
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload same-build target packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: xr30-emmc-same-build-packages-validated-${{ github.run_number }}
+          path: artifacts/same-build-packages
+          retention-days: 30
+          if-no-files-found: error
+      - name: Preserve validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: xr30-emmc-production-validation-diagnostics-${{ github.run_number }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          path: |
+            reports
+            logs
+            source-artifact.json
+          retention-days: 30
+          if-no-files-found: warn

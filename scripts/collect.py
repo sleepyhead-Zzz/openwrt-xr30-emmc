@@ -39,11 +39,15 @@ shutil.copy2(linux / '.vermagic', dest / 'kernel.config-abi')
 root = next(source.glob('build_dir/target-*/root-mediatek'))
 shutil.copytree(root / 'etc/apk/keys', dest / 'apk-public-keys', dirs_exist_ok=True)
 provenance = {'build_repository': 'https://github.com/' + os.environ['GITHUB_REPOSITORY'],
-    'build_commit': os.environ['GITHUB_SHA'],
-    'run': f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}',
+    'build_commit': os.environ.get('XR30_SOURCE_BUILD_COMMIT',os.environ['GITHUB_SHA']),
+    'run': f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ.get("XR30_SOURCE_BUILD_RUN_ID",os.environ["GITHUB_RUN_ID"])}',
     'openwrt_commit': subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip(),
     'feeds': {p.name: subprocess.check_output(['git', '-C', str(p), 'rev-parse', 'HEAD'], text=True).strip()
               for p in (source / 'feeds').iterdir() if p.is_dir() and (p / '.git').exists()}}
+if os.environ.get('XR30_SOURCE_BUILD_RUN_ID'):
+    provenance['validation_commit']=os.environ['GITHUB_SHA']
+    provenance['validation_run']=f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}'
+    provenance['image_changed']=False
 (dest / 'provenance.json').write_text(json.dumps(provenance, indent=2) + '\n')
 status = ('正式安装版构建及离线检查通过，磁盘启动与持久化尚未实机验证。\n'
           '正式 FIT：SquashFS + F2FS，production 系统分区为 12 GiB。\n'

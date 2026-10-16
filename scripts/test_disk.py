@@ -75,6 +75,8 @@ with tempfile.TemporaryDirectory(prefix='xr30-disk-ci-') as td:
   data_hash=digest(loop+'p5')
   gpt=(digest(disk,0,34*512),digest(disk,(sectors-33)*512,33*512))
   shutil.copy2(image,root/'tmp/production.itb')
+  arm('fwtool -i /dev/null -T /tmp/production.itb > /tmp/stripped.itb')
+  raw_image=root/'tmp/stripped.itb'; raw_bytes=raw_image.stat().st_size; raw_hash=digest(raw_image)
   for board,expected in [('cmcc,xr30-emmc',0),('cmcc,rax3000m',1)]:
    (root/'tmp/sysinfo/board_name').write_text(board+'\n')
    code=arm('. /lib/functions.sh; . /lib/upgrade/fwtool.sh; v() { :; }; REQUIRE_IMAGE_METADATA=1; if fwtool_check_image /tmp/production.itb; then echo 0; else echo 1; fi')
@@ -84,12 +86,18 @@ with tempfile.TemporaryDirectory(prefix='xr30-disk-ci-') as td:
 get_image() {{ cat "$1"; }}
 EMMC_KERN_DEV={prod}
 UPGRADE_BACKUP=
-emmc_upgrade_fit /tmp/production.itb
+# Upstream returns 1 when its final optional zeroing condition is false.
+# Validate written blocks and bytes below; do not treat that as a flash failure.
+upgrade_rc=0
+emmc_upgrade_fit /tmp/production.itb || upgrade_rc=$?
+test "$upgrade_rc" -eq 0 || {{ test "$upgrade_rc" -eq 1 && [ -n "$UPGRADE_BACKUP" ]; }}
 test "$EMMC_KERNEL_BLOCKS" -gt 0
 echo "$EMMC_KERNEL_BLOCKS" > /tmp/test-blocks
 '''
   arm(upgrade)
   blocks=int((root/'tmp/test-blocks').read_text())
+  assert blocks==(raw_bytes+511)//512
+  assert digest(loop+'p4',0,raw_bytes)==raw_hash
   assert offset<=blocks*512<=offset+1024*1024
   fitrw=run('losetup','--find','--show','--offset',18432*512+offset,'--sizelimit',12*1024**3-offset,disk);loops.append(fitrw)
   rw=expose(fitrw,'xr30-test-fitrw')
@@ -118,13 +126,14 @@ echo "$EMMC_KERNEL_BLOCKS" > /tmp/test-blocks
   arm(upgrade.replace('UPGRADE_BACKUP=','UPGRADE_BACKUP=/tmp/config-backup')+'\nemmc_copy_config\n')
   with open(loop+'p4','rb') as f:
    f.seek(blocks*512);assert f.read(27)==b'XR30-UPGRADE-CONFIG-MARKER\n'
+  assert digest(loop+'p4',0,raw_bytes)==raw_hash
   assert all(digest(dev)==value for dev,value in markers.items())
   assert digest(loop+'p5')==data_hash
   assert gpt==(digest(disk,0,34*512),digest(disk,(sectors-33)*512,33*512))
   mount(loop+'p5',td/'data','ext4','ro')
   assert (td/'data/keep.txt').read_text()=='XR30 data must survive sysupgrade and remount\n'
   unmount(td/'data')
-  result={'status':'passed','disk_sectors':sectors,'sector_bytes':512,'partition_table':parts,'production_bytes':12*1024**3,'fitrw_bytes':12*1024**3-offset,'f2fs_capacity_bytes':capacity,'beyond_4GiB_file_io':True,'merged_root_persistence':True,'data_label':'XR30_DATA','data_full_partition_sha256_before_and_after':data_hash,'upgrade_method':'image ARM64 emmc_upgrade_fit and emmc_copy_config against CI loop partition','preserved':['primary GPT','backup GPT','p1 contents and identity','p2 contents and identity','p3 contents and identity','entire p5 contents'],'limits':'Loop mappings reproduce FIT extents; this is not execution of the XR30 kernel fitblk driver or physical disk boot.'}
+  result={'status':'passed','disk_sectors':sectors,'sector_bytes':512,'partition_table':parts,'production_bytes':12*1024**3,'fitrw_bytes':12*1024**3-offset,'f2fs_capacity_bytes':capacity,'beyond_4GiB_file_io':True,'merged_root_persistence':True,'data_label':'XR30_DATA','data_full_partition_sha256_before_and_after':data_hash,'written_fit_payload_sha256':raw_hash,'upgrade_method':'image ARM64 emmc_upgrade_fit and emmc_copy_config against CI loop partition','preserved':['primary GPT','backup GPT','p1 contents and identity','p2 contents and identity','p3 contents and identity','entire p5 contents'],'limits':'Loop mappings reproduce FIT extents; this is not execution of the XR30 kernel fitblk driver or physical disk boot.'}
  finally:
   for m in mounts[::-1]: subprocess.run(['umount',str(m)],check=False)
   for l in loops[::-1]: subprocess.run(['losetup','-d',l],check=False)
