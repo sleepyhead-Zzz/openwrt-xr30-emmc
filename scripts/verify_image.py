@@ -9,6 +9,7 @@ import struct
 import sys
 import zlib
 import subprocess
+import os
 import tempfile
 from pathlib import Path
 
@@ -199,7 +200,8 @@ def verify(image, report_dir):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             sq = tmp/'root.squashfs'; sq.write_bytes(blobs['rootfs'])
-            subprocess.run(['unsquashfs','-d',str(tmp/'root'),str(sq)],check=True,stdout=subprocess.DEVNULL)
+            subprocess.run(['sudo','unsquashfs','-d',str(tmp/'root'),str(sq)],check=True,stdout=subprocess.DEVNULL)
+            subprocess.run(['sudo','chown','-hR',f'{os.getuid()}:{os.getgid()}',str(tmp/'root')],check=True)
             files = {str(p.relative_to(tmp/'root')):{'data':p.read_bytes()} for p in (tmp/'root').rglob('*') if p.is_file() and not p.is_symlink()}
         fwtool = next(Path('openwrt/staging_dir/host/bin').glob('fwtool'))
         meta = report_dir/'production-metadata.json'
