@@ -20,6 +20,7 @@ for name in ['rescue-image-checks.json', 'production-image-checks.json', 'defaul
     assert (reports / name).is_file(), name
 compat = json.loads((reports / 'compatibility.json').read_text())
 assert compat['indexes_verified'] and compat['dependency_checks'].startswith('passed')
+assert compat['official_kmods_enabled'], 'Official kmod ABI verification is required for this installation candidate'
 for image in images:
     shutil.copy2(image, dest / image.name)
 for name in ['startup-checks.json','disk-checks.json','defaults-checks.json']:
