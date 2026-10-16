@@ -2,7 +2,7 @@
 """Destructive test restricted to a newly-created sparse file and owned loop devices.
 Never accepts a device path. Run with sudo on the disposable Linux CI runner.
 """
-import hashlib,json,os,shutil,subprocess,sys,tempfile,time
+import hashlib,json,os,shutil,stat,subprocess,sys,tempfile,time
 from pathlib import Path
 repo=Path(__file__).resolve().parents[1]
 root=(repo/'test-root').resolve()
@@ -10,6 +10,13 @@ image=next((repo/'openwrt/bin/targets/mediatek/filogic').glob('*cmcc_xr30-emmc-s
 layout=json.loads((repo/'reports/fit-layout.json').read_text())
 offset=layout['overlay_offset']; sectors=120832000
 assert os.geteuid()==0 and sys.platform=='linux'
+# Supply only normal pseudo-devices, never bind-mount the host /dev tree.
+for name,minor in [('null',3),('zero',5),('random',8),('urandom',9)]:
+ p=root/'dev'/name
+ if p.exists():
+  st=p.lstat(); assert stat.S_ISCHR(st.st_mode) and st.st_rdev==os.makedev(1,minor)
+ else:
+  os.mknod(p,stat.S_IFCHR|0o666,os.makedev(1,minor))
 for name in ['mounts','swaps','partitions']:
  (root/'proc'/name).write_text('')
 assert 0<offset<128*1024**2 and offset%4096==0

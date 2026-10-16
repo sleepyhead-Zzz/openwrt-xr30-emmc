@@ -44,6 +44,13 @@ jobs:
             rsync swig unzip file wget curl ccache cmake ninja-build quilt patch diffutils \
             perl pkgconf time xsltproc zstd liblz4-tool cpio device-tree-compiler u-boot-tools \
             qemu-user-static binfmt-support squashfs-tools fdisk gdisk f2fs-tools
+          sudo modprobe loop
+          if ! sudo modprobe f2fs; then
+            sudo apt-get -qq install "linux-modules-extra-$(uname -r)"
+            sudo modprobe f2fs
+          fi
+          sudo modprobe squashfs
+          sudo modprobe overlay
           sudo apt-get clean
           sudo mkdir -p /workdir
           sudo chown "$(id -u):$(id -g)" /workdir

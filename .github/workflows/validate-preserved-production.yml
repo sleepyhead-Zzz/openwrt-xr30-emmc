@@ -30,6 +30,13 @@ jobs:
           sudo docker image prune --all --force
           sudo apt-get -qq update
           sudo apt-get -qq install qemu-user-static binfmt-support cpio fakeroot unzip device-tree-compiler squashfs-tools fdisk gdisk f2fs-tools
+          sudo modprobe loop
+          if ! sudo modprobe f2fs; then
+            sudo apt-get -qq install "linux-modules-extra-$(uname -r)"
+            sudo modprobe f2fs
+          fi
+          sudo modprobe squashfs
+          sudo modprobe overlay
           sudo apt-get clean
           mkdir -p reports logs
           df -hT | tee reports/disk-preflight.txt
