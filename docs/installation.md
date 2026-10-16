@@ -14,7 +14,7 @@
 | p4 | production | 18432 | 25184255 | 25165824 |
 | p5 | data | 25184256 | 120831966 | 95647711 |
 
-p4 恰为 12 GiB，包括 FIT 固件、SquashFS 和 F2FS overlay；可用量略少。p5 约 45.61 GiB，ext4 标签 XR30_DATA，挂载 /mnt/data。BL2 位于独立 eMMC 硬件启动区域，不能写入或重新配置。p1–p3 的内容、GUID、类型和边界均保持。
+p4 恰为 12 GiB，包括 FIT 固件、SquashFS 和 F2FS overlay；可用量略少。p5 约 45.61 GiB，ext4 标签 XR30_DATA，挂载 /mnt/data。BL2 位于独立 eMMC 硬件启动区域，不能写入或重新配置。GPT 修改阶段 p1–p3 的内容、GUID、类型和边界均保持；未来正式安装入口会由 U-Boot 自身更新环境中的启动槽变量，环境分区本身不删除、不重建。
 
 旧 kernel/rootfs/production/data 都会丢失，不迁移。旧 Kwrt 不再是可回退槽；恢复依靠保存的启动器、备份和 RAM 救援。CPU 缓存和 USB 供电设备树警告保留。
 
@@ -63,7 +63,7 @@ sha256sum *.bin original.sfdisk original.json > SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
 
-从电脑下载整个目录，并在电脑再次校验 SHA-256。对原盘重复读取哈希，与备份逐项比较（例如 `sha256sum /dev/mmcblk0boot0 /dev/mmcblk0boot1 /dev/mmcblk0p1 /dev/mmcblk0p2 /dev/mmcblk0p3`）；GPT 两份备份还需检查签名、头和分区表 CRC。若备份不完整、两次读取不一致或无法确认 GPT 有效，停止。硬件启动区只备份，不解除只读保护，不访问 RPMB，不改 eMMC boot 配置。
+从电脑下载整个目录，并在电脑再次校验 SHA-256。对原盘重复读取哈希，与备份逐项比较（例如 `sha256sum /dev/mmcblk0boot0 /dev/mmcblk0boot1 /dev/mmcblk0p1 /dev/mmcblk0p2 /dev/mmcblk0p3`）；在电脑运行 `python3 verify_backup.py <备份目录>`，检查 GPT 两份备份的签名、头和分区表 CRC、互相指向、相同分区记录及关键文件大小。若备份不完整、两次读取不一致或无法确认 GPT 有效，停止。硬件启动区只备份，不解除只读保护，不访问 RPMB，不改 eMMC boot 配置。
 
 ## 3. 修改 GPT（破坏旧系统的明确步骤）
 
@@ -96,9 +96,9 @@ block info /dev/mmcblk0p5
 
 ## 5. 经现有 U-Boot 写入正式 FIT
 
-1. 从救援退出并进入已存在的 U-Boot 恢复/固件上传入口，确认是正式固件写入入口，而非 BL2、FIP、GPT、环境或 RAM 启动入口。
+1. 从救援退出并进入已存在的 U-Boot 恢复/固件上传入口，确认是 `Firmware`（`fw`）正式固件写入入口，而非 BL2、FIP、GPT、环境、整盘 `Single image`（`simg`）或 RAM 启动入口。
 2. 上传并写入本次 `squashfs-sysupgrade.itb`。不要使用当前旧 Kwrt 的 LuCI 或 sysupgrade 脚本。
-3. 已核对的启动器实现按 GPT 名称 production 定位目标，并由固件入口选择系统槽 1。不要自行运行 fw_setenv：旧环境布局不匹配官方 RAX3000M 环境工具配置，本镜像不含该工具。
+3. 已核对的启动器实现按 GPT 名称 production 定位目标，并由固件入口选择系统槽 1（保存 `dual_boot.current_slot=1`；这是安装入口必要的环境更新）。不要自行运行 fw_setenv：旧环境布局不匹配官方 RAX3000M 环境工具配置，本镜像不含该工具。
 4. 若实际页面/串口流程与该入口不符，或提示其他写入目标，停止；不能把未知入口当成同一个入口。
 5. 等待写入校验完成，再按该入口正常启动正式系统。没有备份且刷写中断时不可反复试写 bootloader。
 

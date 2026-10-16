@@ -26,6 +26,7 @@ for name in ['startup-checks.json','disk-checks.json','defaults-checks.json']:
     assert json.loads((reports/name).read_text())['status'] == 'passed', name
 shutil.copytree(repo / 'locks', dest / 'locks', dirs_exist_ok=True)
 shutil.copytree(repo / 'docs', dest / 'docs', dirs_exist_ok=True)
+shutil.copy2(repo/'scripts/verify_backup.py',dest/'verify_backup.py')
 for p in reports.iterdir():
     if p.is_file() and p.suffix in ('.json', '.log', '.uci', '.manifest', '.dtb', '.txt'):
         shutil.copy2(p, dest / p.name)

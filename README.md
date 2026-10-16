@@ -1,6 +1,6 @@
 # XR30 eMMC OpenWrt 25.12.5
 
-Builds a production SquashFS FIT and an independent initramfs rescue FIT for CMCC XR30 eMMC. The intended layout has a 12 GiB `production` partition and an ext4 `XR30_DATA` partition mounted at `/mnt/data`. Installation removes old Kwrt kernel/rootfs; BL2, FIP, factory and environment contents remain unchanged.
+Builds a production SquashFS FIT and an independent initramfs rescue FIT for CMCC XR30 eMMC. The intended layout has a 12 GiB `production` partition and an ext4 `XR30_DATA` partition mounted at `/mnt/data`. Installation removes old Kwrt kernel/rootfs; BL2, FIP, factory and the environment partition are preserved. The existing U-Boot Firmware entry updates its boot-slot environment variable when installing the production FIT.
 
 The locked official OpenWrt commit is `f0a60eee2fe051741c643ea6118718aae1ef17fb`; feeds, official build configuration and source metadata are in `locks/`. Official mt76, 52 MHz eMMC configuration, 192.168.3.1/24 LAN, DHCP, two open XR30 APs in CN, Chinese LuCI and signed USTC APK repositories are retained. CPU cache and USB supply DT warnings are unchanged.
 
